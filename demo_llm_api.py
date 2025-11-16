@@ -195,7 +195,6 @@ def print_price_result(product_id: str, result: Dict[str, Any]) -> None:
     print(json.dumps(result, indent=2, ensure_ascii=False))
     print("=================================================\n")
 
-
 def load_products_from_sap(token: str) -> Dict[str, Dict[str, Any]]:
     """
     Produkt-Information API aufrufen und ein Dict zurückgeben:
