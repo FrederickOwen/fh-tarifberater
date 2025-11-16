@@ -19,7 +19,6 @@ OPENROUTER_MODELS = [
 
 PRODUCTS: Dict[str, Dict[str, Any]] = {}
 
-
 # ============================================
 # LLM (OpenRouter)
 # ============================================
@@ -114,8 +113,6 @@ Regeln:
 
     return result
 
-
-
 # ============================================
 # SAP AUTH & PREISSIMULATION
 # ============================================
@@ -148,7 +145,6 @@ def get_oauth_token() -> str:
     token = resp.json()["access_token"]
     print("✅ [SAP] Token OK")
     return token
-
 
 def simulate_price(
     token: str,
@@ -245,7 +241,6 @@ def load_products_from_sap(token: str) -> Dict[str, Dict[str, Any]]:
     print(f"✅ [SAP] {len(products_dict)} Produkte für Chatbot geladen.")
     return products_dict
 
-
 # ============================================
 # MAIN FLOW (LLM + SAP)
 # ============================================
@@ -311,7 +306,6 @@ def main() -> None:
 
     # 6) Ergebnis ausgeben
     print_price_result(product_id, result)
-
 
 if __name__ == "__main__":
     main()
