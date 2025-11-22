@@ -1,0 +1,172 @@
+# If you are in Colab, you can run this whole cell.
+
+!pip install requests
+
+import requests
+import base64
+import json
+from typing import Any, Dict, List
+from getpass import getpass
+
+# ------------------------------------------------------
+# 1) Konfiguration: Endpoints aus der Doku
+# ------------------------------------------------------
+
+SAP_TOKEN_URL = (
+    "https://intense-ag-development.authentication.eu10.hana.ondemand.com/oauth/token"
+)
+SAP_PRODUCTS_URL = (
+    "https://intense-ag-development.it-cpi018-rt.cfapps.eu10-003.hana.ondemand.com"
+    "/http/v1/s4/upil/product/information"
+)
+
+# ------------------------------------------------------
+# 2) Credentials EINMAL abfragen (keine .env nötig)
+# ------------------------------------------------------
+
+CLIENT_ID = getpass("SAP CLIENT_ID: ")
+CLIENT_SECRET = getpass("SAP CLIENT_SECRET: ")
+
+
+# ------------------------------------------------------
+# 3) Token holen
+# ------------------------------------------------------
+
+def getAccessToken() -> str:
+    """
+    Holt ein OAuth2-Access-Token (client_credentials),
+    so wie im Postman-Beispiel.
+    """
+    if not CLIENT_ID or not CLIENT_SECRET:
+        raise RuntimeError(
+            "⚠ CLIENT_ID / CLIENT_SECRET nicht gesetzt – bitte beim Start eingeben."
+        )
+
+    # client_id:client_secret → base64 für HTTP Basic Auth
+    basic_auth = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
+
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": f"Basic {basic_auth}",
+    }
+    data = {"grant_type": "client_credentials"}
+
+    print("🔐 [SAP] Hole OAuth Token ...")
+    resp = requests.post(SAP_TOKEN_URL, headers=headers, data=data)
+
+    if resp.status_code != 200:
+        print("❌ [SAP] Fehler beim Token holen:", resp.status_code)
+        print("Body:", resp.text)
+        resp.raise_for_status()
+
+    token = resp.json()["access_token"]
+    print("✅ [SAP] Token OK")
+    return token
+
+
+# ------------------------------------------------------
+# 4) Produktliste holen + auf vertriebskanal='Chatbot' filtern
+# ------------------------------------------------------
+
+def getProducts() -> List[Dict[str, Any]]:
+    """
+    - Token automatisch per getAccessToken() holen
+    - Produktliste abrufen
+    - nach vertriebskanal == "Chatbot" filtern
+    - Liste von Objekten mit relevanten Feldern zurückgeben:
+      productId, name, laufzeit, preise, vertriebskanal
+    """
+    token = getAccessToken()
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        # laut PDF: keine weiteren speziellen Header nötig
+    }
+
+    print("📦 [SAP] Hole Produktliste ...")
+    resp = requests.get(SAP_PRODUCTS_URL, headers=headers)
+
+    if resp.status_code != 200:
+        print("❌ [SAP] Fehler beim Laden der Produktliste:", resp.status_code)
+        print("Body:", resp.text)
+        resp.raise_for_status()
+
+    data = resp.json()
+
+    # Struktur raten wir, bis wir sie genau kennen:
+    # - entweder direkt eine Liste: [ {...}, {...}, ... ]
+    # - oder ein Objekt mit "products": { "products": [ {...}, ... ] }
+    if isinstance(data, list):
+        raw_products = data
+    elif isinstance(data, dict) and "products" in data:
+        raw_products = data["products"]
+    else:
+        print("⚠ Unerwartete Antwortstruktur!")
+        print("Typ:", type(data))
+        print(json.dumps(data, indent=2, ensure_ascii=False))
+        return []
+
+    chatbot_products: List[Dict[str, Any]] = []
+
+    for p in raw_products:
+        # Filter: nur Vertriebskanal "Chatbot"
+        if p.get("vertriebskanal") != "Chatbot":
+            continue
+
+        # Feldnamen müssen evtl. angepasst werden,
+        # wenn du die echte Struktur gesehen hast.
+        product_id = (
+            p.get("productId")
+            or p.get("ProduktID")
+            or p.get("produktId")
+        )
+        name = (
+            p.get("name")
+            or p.get("bezeichnung")
+            or p.get("produktName")
+        )
+        laufzeit = p.get("laufzeit") or p.get("Laufzeit")
+
+        # Preise: hier Beispiel – bitte nach realer Struktur anpassen
+        preise = (
+            p.get("preise")
+            or {
+                "grundpreis": p.get("grundpreis"),
+                "arbeitspreis": p.get("arbeitspreis"),
+            }
+        )
+
+        chatbot_products.append(
+            {
+                "productId": product_id,
+                "name": name,
+                "laufzeit": laufzeit,
+                "preise": preise,
+                "vertriebskanal": p.get("vertriebskanal"),
+            }
+        )
+
+    print(f"✅ [SAP] {len(chatbot_products)} Produkte für 'Chatbot' gefunden.")
+    return chatbot_products
+
+
+# ------------------------------------------------------
+# 5) Kleiner Testlauf (für dich zum Debuggen)
+# ------------------------------------------------------
+
+if _name_ == "_main_":
+    try:
+        products = getProducts()
+    except Exception as e:
+        print("🚨 Fehler in getProducts():", repr(e))
+    else:
+        from pprint import pprint
+
+        print("\n================ ERGEBNIS getProducts() ================")
+        print(f"Anzahl Produkte: {len(products)}")
+
+        for i, p in enumerate(products, start=1):
+            print(f"\n--- Produkt {i} ---")
+            pprint(p)
+
+        print("========================================================")
