@@ -1,0 +1,69 @@
+import requests
+import base64
+
+SAP_TOKEN_URL = "https://intense-ag-development.authentication.eu10.hana.ondemand.com/oauth/token"
+OFFER_URL = "https://intense-ag-development.it-cpi018-rt.cfapps.eu10-003.hana.ondemand.com/http/v1/servicecloud/create/offer"
+
+CLIENT_ID = "sb-27fb148c-fe57-4a21-8d4d-f462d0af1a34!b185136|it-rt-intense-ag-development!b117912"
+CLIENT_SECRET = "070a2839-315f-48cb-9834-b818948979e2$gDS3MxTiFCAeToiE9e5k2tQpmL6dD5SdYIS-rkQRhi4="
+
+
+def getAccessToken():
+    """
+    Generates an SAP OAuth2 access token using client_credentials.
+    """
+    raw = f"{CLIENT_ID}:{CLIENT_SECRET}"
+    basic = base64.b64encode(raw.encode()).decode()
+
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": f"Basic {basic}"
+    }
+
+    resp = requests.post(SAP_TOKEN_URL, headers=headers, data={"grant_type": "client_credentials"})
+
+    if resp.status_code != 200:
+        print("❌ Error fetching token:", resp.text)
+        resp.raise_for_status()
+
+    print("✅ Token obtained successfully")
+    return resp.json()["access_token"]
+
+
+def create_offer(group, product_id, start_date):
+    """
+    Calls the Offer Creation API (Schnittstelle 3)
+    """
+    token = getAccessToken()
+
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Gruppe": group,
+        "Produkt": product_id,
+        "Content-Type": "application/json",
+    }
+
+    body = {"STARTDATE": start_date}
+
+    resp = requests.post(OFFER_URL, headers=headers, json=body)
+
+    if resp.status_code == (200, 201):
+        print("✅ Offer created successfully")
+    else:
+        print("❌ Offer creation failed:", resp.status_code, resp.text)
+        resp.raise_for_status()
+
+    return resp.json()
+
+
+# -------------- TEST CALL -----------------
+
+if __name__ == "__main__":
+    response = create_offer(
+        group="Simulation Gruppe1",
+        product_id="INT12_DEMO_PROD",   # must be a real product ID
+        start_date="2025-12-01"
+    )
+
+    print("\n📄 Final Result:")
+    print(response)
