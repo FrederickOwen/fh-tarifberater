@@ -1,0 +1,23 @@
+def create_offer(group: str, product_id: str, start_date: str) -> dict:
+    token = getAccessToken()
+
+    url = "https://intense-ag-development.it-cpi018-rt.cfapps.eu10-003.hana.ondemand.com/http/v1/servicecloud/create/offer"
+    
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Gruppe": group,           # Simulation Gruppe1 – Gruppe8
+        "Produkt": product_id,
+        "Content-Type": "application/json"
+    }
+
+    body = {"STARTDATE": start_date}
+
+    resp = requests.post(url, headers=headers, json=body)
+
+    if resp.status_code != 200:
+        print("❌ Fehler beim Anlegen des Angebots:", resp.status_code)
+        print(resp.text)
+        resp.raise_for_status()
+
+    return resp.json()  # enthält Angebots-ID
+
